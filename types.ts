@@ -7,4 +7,6 @@ export enum Tool {
   TestCaseGenerator = 'Test Case Generator',
   QualityAssessment = 'Quality Assessment',
   AutomationCodeGenerator = 'Automation Code Generator',
+  QAEpicDocGenerator = 'QA Epic Doc Generator',
+  AccessibilityAuditor = 'Accessibility Auditor',
 }

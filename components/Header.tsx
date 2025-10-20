@@ -8,7 +8,9 @@ interface HeaderProps {
 const subtitles: Record<Tool, string> = {
   [Tool.TestCaseGenerator]: 'Instantly generate procedural or Gherkin test cases from acceptance criteria.',
   [Tool.QualityAssessment]: 'Get a tailored assessment of your team\'s software quality practices.',
-  [Tool.AutomationCodeGenerator]: 'Create test automation code from a test case for your chosen framework.'
+  [Tool.AutomationCodeGenerator]: 'Create test automation code from a test case for your chosen framework.',
+  [Tool.QAEpicDocGenerator]: 'Effortlessly generate complete QA documentation for your epics.',
+  [Tool.AccessibilityAuditor]: 'Get a comprehensive WCAG 2.2 AA audit for your web page.'
 }
 
 export const Header: React.FC<HeaderProps> = ({ activeTool }) => {

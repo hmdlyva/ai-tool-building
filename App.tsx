@@ -7,9 +7,12 @@ import { OutputDisplay } from './components/OutputDisplay';
 import { ToolSelector } from './components/ToolSelector';
 import { QualityAssessmentForm } from './components/QualityAssessmentForm';
 import { AutomationCodeForm } from './components/AutomationCodeForm';
+import { EpicDocForm } from './components/EpicDocForm';
+import { AccessibilityAuditorForm } from './components/AccessibilityAuditorForm';
 import { OutputType, Tool } from './types';
-import { generateTestCase, generateQualityAssessment, generateAutomationCode } from './services/geminiService';
+import { generateTestCase, generateQualityAssessment, generateAutomationCode, generateEpicDocumentation, generateAccessibilityAudit } from './services/geminiService';
 import { ALL_QUALITY_PRACTICES, LANGUAGES, AUTOMATION_FRAMEWORKS } from './constants';
+import { Part } from '@google/genai';
 
 function App() {
   const [activeTool, setActiveTool] = useState<Tool>(Tool.TestCaseGenerator);
@@ -26,10 +29,34 @@ function App() {
   const [testCase, setTestCase] = useState('');
   const [framework, setFramework] = useState(AUTOMATION_FRAMEWORKS[0]);
 
+  // State for QA Epic Doc Generator
+  const [epicTitle, setEpicTitle] = useState('');
+  const [testPlan, setTestPlan] = useState('');
+  const [acceptanceCriteriaList, setAcceptanceCriteriaList] = useState<string[]>(['']);
+  const [testCases, setTestCases] = useState('');
+
+  // State for Accessibility Auditor
+  const [auditContext, setAuditContext] = useState('');
+  const [techStack, setTechStack] = useState('');
+  const [artifactType, setArtifactType] = useState<'url' | 'screenshots'>('url');
+  const [auditUrl, setAuditUrl] = useState('');
+  const [screenshots, setScreenshots] = useState<File[]>([]);
+
   // Common state
   const [output, setOutput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const fileToGenerativePart = async (file: File): Promise<Part> => {
+    const base64EncodedDataPromise = new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+      reader.readAsDataURL(file);
+    });
+    return {
+      inlineData: { data: await base64EncodedDataPromise, mimeType: file.type },
+    };
+  }
 
   const handleGenerateTestCase = async () => {
     setIsLoading(true);
@@ -86,6 +113,50 @@ function App() {
     }
   };
 
+  const handleGenerateEpicDoc = async () => {
+    setIsLoading(true);
+    setError(null);
+    setOutput('');
+    try {
+      const result = await generateEpicDocumentation(epicTitle, testPlan, acceptanceCriteriaList, testCases);
+      setOutput(result);
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        setError(e.message);
+      } else {
+        setError('An unknown error occurred.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGenerateAccessibilityAudit = async () => {
+    setIsLoading(true);
+    setError(null);
+    setOutput('');
+    try {
+      let artifacts: { type: 'url'; value: string } | { type: 'screenshots'; value: Part[] };
+      if (artifactType === 'url') {
+        artifacts = { type: 'url', value: auditUrl };
+      } else {
+        const imageParts = await Promise.all(screenshots.map(fileToGenerativePart));
+        artifacts = { type: 'screenshots', value: imageParts };
+      }
+      const result = await generateAccessibilityAudit(auditContext, techStack, artifacts);
+      setOutput(result);
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        setError(e.message);
+      } else {
+        setError('An unknown error occurred.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
   const handleToolChange = (tool: Tool) => {
     setActiveTool(tool);
     // Reset state when switching tools
@@ -94,25 +165,46 @@ function App() {
     setAcceptanceCriteria('');
     setSelectedPractices([]);
     setTestCase('');
+    setEpicTitle('');
+    setTestPlan('');
+    setAcceptanceCriteriaList(['']);
+    setTestCases('');
+    setAuditContext('');
+    setTechStack('');
+    setAuditUrl('');
+    setScreenshots([]);
   };
 
   const placeholder = useMemo(() => {
-    if (activeTool === Tool.TestCaseGenerator) {
-      return {
-        title: 'Your generated test case will appear here.',
-        subtitle: 'Enter your acceptance criteria above and click "Generate".'
-      };
+    switch(activeTool) {
+      case Tool.TestCaseGenerator:
+        return {
+          title: 'Your generated test case will appear here.',
+          subtitle: 'Enter your acceptance criteria above and click "Generate".'
+        };
+      case Tool.QualityAssessment:
+        return {
+          title: 'Your quality assessment report will appear here.',
+          subtitle: 'Select your team\'s practices and click "Generate".'
+        };
+      case Tool.AutomationCodeGenerator:
+          return {
+              title: 'Your generated automation code will appear here.',
+              subtitle: 'Provide a test case, select a framework, and click "Generate".'
+          };
+      case Tool.QAEpicDocGenerator:
+          return {
+              title: 'Your QA Epic Documentation will appear here.',
+              subtitle: 'Fill in the details for your epic and click "Generate".'
+          };
+      case Tool.AccessibilityAuditor:
+            return {
+                title: 'Your accessibility audit report will appear here.',
+                subtitle: 'Provide a URL or screenshots and click "Generate Audit".'
+            };
+      default:
+        return { title: 'Output will appear here.', subtitle: '' };
     }
-    if (activeTool === Tool.QualityAssessment) {
-      return {
-        title: 'Your quality assessment report will appear here.',
-        subtitle: 'Select your team\'s practices and click "Generate".'
-      };
-    }
-    return {
-        title: 'Your generated automation code will appear here.',
-        subtitle: 'Provide a test case, select a framework, and click "Generate".'
-    };
   }, [activeTool]);
   
   const renderActiveForm = () => {
@@ -150,6 +242,38 @@ function App() {
             isLoading={isLoading}
           />
         );
+      case Tool.QAEpicDocGenerator:
+        return (
+            <EpicDocForm
+                epicTitle={epicTitle}
+                setEpicTitle={setEpicTitle}
+                testPlan={testPlan}
+                setTestPlan={setTestPlan}
+                acceptanceCriteriaList={acceptanceCriteriaList}
+                setAcceptanceCriteriaList={setAcceptanceCriteriaList}
+                testCases={testCases}
+                setTestCases={setTestCases}
+                onGenerate={handleGenerateEpicDoc}
+                isLoading={isLoading}
+            />
+        );
+      case Tool.AccessibilityAuditor:
+        return (
+            <AccessibilityAuditorForm
+                context={auditContext}
+                setContext={setAuditContext}
+                techStack={techStack}
+                setTechStack={setTechStack}
+                artifactType={artifactType}
+                setArtifactType={setArtifactType}
+                url={auditUrl}
+                setUrl={setAuditUrl}
+                screenshots={screenshots}
+                setScreenshots={setScreenshots}
+                onGenerate={handleGenerateAccessibilityAudit}
+                isLoading={isLoading}
+            />
+        )
       default:
         return null;
     }
