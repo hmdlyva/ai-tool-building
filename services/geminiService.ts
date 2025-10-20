@@ -1,5 +1,6 @@
 
-import { GoogleGenAI, Part } from '@google/genai';
+
+import { GoogleGenAI, Part, Modality } from '@google/genai';
 import { OutputType } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
@@ -114,6 +115,77 @@ Start at 100. Deduct points per issue by severity: High (-10 each), Medium (-5 e
 - If only screenshots are given, clearly mark items that cannot be fully verified (e.g., keyboard flow, ARIA states) as "Unknown" or "Not verifiable". Offer a likely risk assessment instead.
 - Use plain, actionable language. Group similar issues.
 - The deliverable MUST be a single, self-contained Markdown report following this format precisely.
+`;
+
+const SYSTEM_INSTRUCTION_USABILITY_TEST = `You are a world-class UX/UI and Usability Testing expert. Your task is to analyze a provided screenshot of a user interface, identify its elements, create an annotated version of the image, and generate a comprehensive usability report.
+
+**Input:**
+1.  A single screenshot of a UI.
+2.  Context about the page's purpose and user goals.
+
+**Your Output MUST be in two parts:**
+1.  **Annotated Image:** An image where you have placed numbered labels on all significant, interactive, and informational UI elements you can identify.
+2.  **Text Report (Markdown):** A detailed report with the following structure:
+
+    ---
+
+    ### 1. Annotated Element Index
+    A numbered list that corresponds to the labels on the annotated image you generated. For each number, identify the element type and its likely function.
+    *Example:*
+    1.  Primary Header (H1)
+    2.  Main Navigation Bar
+    3.  Search Input Field
+    4.  "Search Flights" Button (Primary Call-to-Action)
+    ...
+
+    ### 2. Usability Heuristic Analysis
+    Provide a heuristic evaluation of the interface based on established usability principles (like Nielsen's Heuristics). Structure your analysis with subheadings for key principles.
+    *Example Subheadings:*
+    - **Clarity and Simplicity:** How clean and uncluttered is the design?
+    - **Consistency:** Are elements like buttons and links styled consistently?
+    - **User Control:** Are there clear ways to navigate or go back?
+    - **Feedback:** Does the UI provide feedback for actions?
+
+    ### 3. Usability Score: [Score]/100
+    Provide a score from 0 to 100. **You must justify your score** by briefly explaining the key factors (both positive and negative) that contributed to it.
+
+    ### 4. Actionable Recommendations
+    Provide a prioritized list of 3-5 concrete, actionable recommendations for improving the UI's usability. For each recommendation, explain the problem it solves and the expected user benefit.
+`;
+
+const SYSTEM_INSTRUCTION_PIPELINE_GENERATOR = `You are a DevOps expert specializing in CI/CD. Your task is to generate a pipeline configuration file based on a snippet of test automation code.
+Key Rules:
+1.  Analyze the provided code to infer the programming language (e.g., JavaScript, Python, Java) and framework (e.g., Cypress, Playwright, Selenium).
+2.  Generate a complete, syntactically correct YAML configuration file for the specified CI/CD platform and runner image.
+3.  The pipeline must include standard, logical steps: checking out the code, installing dependencies (using common package managers like npm, pip, or Maven), and running the tests.
+4.  If a 'Custom Docker Image' is selected, you must use a placeholder like 'your-custom-docker-image:latest' and add a comment explaining that the user needs to replace it.
+5.  The output must be ONLY the raw YAML code. Do not include any introductory text, explanations, or Markdown formatting like \`\`\`yaml. The output should be ready to be copied directly into a pipeline file (e.g., main.yml).
+`;
+
+// Fix: Removed erroneous backticks inside the template literal that were causing syntax errors.
+const SYSTEM_INSTRUCTION_SCENARIO_ANALYZER = `You are an expert QA Strategist. Your task is to analyze a list of user-provided test scenarios for a new feature and create a comprehensive test suite by categorizing them and generating missing BVT and Regression tests.
+
+**Core Objective:** To provide a holistic test plan that covers the new functionality, ensures core stability (BVT), and protects existing features (Regression).
+
+**Your Instructions:**
+1.  **Analyze the User's Scenarios:** The list of scenarios provided by the user represents the "New Feature" tests.
+2.  **Categorize and Structure:** Your output MUST be a Markdown document with the following three sections in this exact order:
+    - ### 🚀 New Feature Scenarios
+    - ### 🔥 BVT (Build Verification Tests)
+    - ### ⏪ Regression Scenarios
+3.  **Populate "New Feature Scenarios":**
+    - List the scenarios exactly as the user provided them under this heading.
+    - **You MUST highlight these scenarios by making them bold.** This is critical to distinguish them from the ones you generate.
+4.  **Generate BVT Scenarios:**
+    - Under the "BVT" heading, generate a list of 3-5 essential, high-level scenarios that verify the absolute critical path functionality of the application. These are the "smoke tests".
+    - You must infer the application's context from the user's scenarios. For example, if the user's scenarios are about "adding an item to a shopping cart," your BVT scenarios should include things like "User can log in successfully" and "Homepage loads without errors."
+    - Add a brief note: "(Generated by AI based on context)".
+5.  **Generate Regression Scenarios:**
+    - Under the "Regression Scenarios" heading, generate a list of plausible scenarios that test existing functionality that could be *indirectly affected* by the new feature.
+    - For the shopping cart example, regression tests might include "User's existing profile information remains unchanged" or "The checkout process still works with previously added items."
+    - Add a brief note: "(Generated by AI based on context)".
+
+The final output should be a clean, well-organized Markdown file that gives the user a complete and actionable set of scenarios.
 `;
 
 
@@ -316,5 +388,128 @@ export const generateAccessibilityAudit = async (
             throw new Error(`An error occurred while generating the audit: ${error.message}`);
         }
         throw new Error('An unknown error occurred while generating the audit.');
+    }
+};
+
+export interface UsabilityTestResult {
+    textReport: string;
+    annotatedImagePart: Part | undefined;
+}
+
+export const generateUsabilityTest = async (
+    context: string,
+    screenshot: Part
+): Promise<UsabilityTestResult> => {
+    if (!context.trim()) {
+        throw new Error('Please provide context for the usability test.');
+    }
+
+    const userPrompt = `Context: ${context}`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: { parts: [{ text: userPrompt }, screenshot] },
+            config: {
+                systemInstruction: SYSTEM_INSTRUCTION_USABILITY_TEST,
+                // @ts-ignore - The type definitions might not include Modality yet
+                responseModalities: [Modality.TEXT, Modality.IMAGE],
+                temperature: 0.5,
+            }
+        });
+
+        let textReport = '';
+        let annotatedImagePart: Part | undefined = undefined;
+
+        if (response.candidates && response.candidates[0].content.parts) {
+            for (const part of response.candidates[0].content.parts) {
+                if (part.text) {
+                    textReport += part.text;
+                } else if (part.inlineData) {
+                    annotatedImagePart = part;
+                }
+            }
+        }
+        
+        if (!textReport) {
+            throw new Error("The AI did not return a text report.");
+        }
+
+        return { textReport, annotatedImagePart };
+
+    } catch (error) {
+        console.error('Error calling Gemini API for usability test:', error);
+        if (error instanceof Error) {
+            throw new Error(`An error occurred while generating the usability test: ${error.message}`);
+        }
+        throw new Error('An unknown error occurred while generating the usability test.');
+    }
+};
+
+export const generatePipelineConfig = async (
+    code: string,
+    ciTool: string,
+    runnerImage: string,
+): Promise<string> => {
+    if (!code.trim()) {
+        throw new Error('Test automation code cannot be empty.');
+    }
+
+    const userPrompt = `
+    CI/CD Platform: ${ciTool}
+    Runner Image: ${runnerImage}
+    
+    Test Automation Code:
+    ---
+    ${code}
+    ---
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-pro',
+            contents: userPrompt,
+            config: {
+                systemInstruction: SYSTEM_INSTRUCTION_PIPELINE_GENERATOR,
+                temperature: 0.3,
+            }
+        });
+
+        return response.text;
+    } catch (error) {
+        console.error('Error calling Gemini API for pipeline generation:', error);
+        if (error instanceof Error) {
+            throw new Error(`An error occurred while generating the pipeline config: ${error.message}`);
+        }
+        throw new Error('An unknown error occurred while generating the pipeline config.');
+    }
+};
+
+export const generateScenarioAnalysis = async (
+    scenarios: string
+): Promise<string> => {
+    if (!scenarios.trim()) {
+        throw new Error('Please provide at least one scenario.');
+    }
+
+    const userPrompt = `Here is the list of new feature scenarios:\n\n${scenarios}`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: userPrompt,
+            config: {
+                systemInstruction: SYSTEM_INSTRUCTION_SCENARIO_ANALYZER,
+                temperature: 0.6,
+            }
+        });
+
+        return response.text;
+    } catch (error) {
+        console.error('Error calling Gemini API for scenario analysis:', error);
+        if (error instanceof Error) {
+            throw new Error(`An error occurred while generating the analysis: ${error.message}`);
+        }
+        throw new Error('An unknown error occurred while generating the analysis.');
     }
 };

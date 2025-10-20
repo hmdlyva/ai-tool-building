@@ -10,7 +10,10 @@ const subtitles: Record<Tool, string> = {
   [Tool.QualityAssessment]: 'Get a tailored assessment of your team\'s software quality practices.',
   [Tool.AutomationCodeGenerator]: 'Create test automation code from a test case for your chosen framework.',
   [Tool.QAEpicDocGenerator]: 'Effortlessly generate complete QA documentation for your epics.',
-  [Tool.AccessibilityAuditor]: 'Get a comprehensive WCAG 2.2 AA audit for your web page.'
+  [Tool.AccessibilityAuditor]: 'Get a comprehensive WCAG 2.2 AA audit for your web page.',
+  [Tool.UsabilityTester]: 'Get an AI-powered usability analysis from a single screenshot.',
+  [Tool.PipelineGenerator]: 'Generate a CI/CD pipeline file from your test automation code.',
+  [Tool.ScenarioAnalyzer]: 'Categorize scenarios and generate missing BVT and Regression tests.'
 }
 
 export const Header: React.FC<HeaderProps> = ({ activeTool }) => {

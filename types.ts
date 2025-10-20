@@ -9,4 +9,7 @@ export enum Tool {
   AutomationCodeGenerator = 'Automation Code Generator',
   QAEpicDocGenerator = 'QA Epic Doc Generator',
   AccessibilityAuditor = 'Accessibility Auditor',
+  UsabilityTester = 'Usability Tester',
+  PipelineGenerator = 'Pipeline Generator',
+  ScenarioAnalyzer = 'Scenario Analyzer',
 }

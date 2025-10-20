@@ -38,6 +38,20 @@ export const AUTOMATION_FRAMEWORKS = [
   'XCUITest (iOS)',
 ];
 
+export const CI_CD_TECHNOLOGIES = [
+    'GitHub Actions',
+    'CircleCI',
+    'Azure DevOps',
+    'GitLab CI/CD',
+];
+
+export const RUNNER_IMAGES = [
+    'ubuntu-latest',
+    'windows-latest',
+    'macos-latest',
+    'Custom Docker Image',
+];
+
 export const QUALITY_PRACTICES_BY_SECTION = [
   {
     title: 'Code Quality & Static Analysis',

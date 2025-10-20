@@ -9,9 +9,12 @@ import { QualityAssessmentForm } from './components/QualityAssessmentForm';
 import { AutomationCodeForm } from './components/AutomationCodeForm';
 import { EpicDocForm } from './components/EpicDocForm';
 import { AccessibilityAuditorForm } from './components/AccessibilityAuditorForm';
+import { UsabilityTestForm } from './components/UsabilityTestForm';
+import { PipelineGeneratorForm } from './components/PipelineGeneratorForm';
+import { ScenarioAnalyzerForm } from './components/ScenarioAnalyzerForm';
 import { OutputType, Tool } from './types';
-import { generateTestCase, generateQualityAssessment, generateAutomationCode, generateEpicDocumentation, generateAccessibilityAudit } from './services/geminiService';
-import { ALL_QUALITY_PRACTICES, LANGUAGES, AUTOMATION_FRAMEWORKS } from './constants';
+import { generateTestCase, generateQualityAssessment, generateAutomationCode, generateEpicDocumentation, generateAccessibilityAudit, generateUsabilityTest, generatePipelineConfig, generateScenarioAnalysis } from './services/geminiService';
+import { ALL_QUALITY_PRACTICES, LANGUAGES, AUTOMATION_FRAMEWORKS, CI_CD_TECHNOLOGIES, RUNNER_IMAGES } from './constants';
 import { Part } from '@google/genai';
 
 function App() {
@@ -41,6 +44,19 @@ function App() {
   const [artifactType, setArtifactType] = useState<'url' | 'screenshots'>('url');
   const [auditUrl, setAuditUrl] = useState('');
   const [screenshots, setScreenshots] = useState<File[]>([]);
+  
+  // State for Usability Tester
+  const [usabilityContext, setUsabilityContext] = useState('');
+  const [usabilityScreenshot, setUsabilityScreenshot] = useState<File | null>(null);
+  const [annotatedImage, setAnnotatedImage] = useState<string | null>(null);
+
+  // State for Pipeline Generator
+  const [pipelineCode, setPipelineCode] = useState('');
+  const [ciTool, setCiTool] = useState(CI_CD_TECHNOLOGIES[0]);
+  const [runnerImage, setRunnerImage] = useState(RUNNER_IMAGES[0]);
+
+  // State for Scenario Analyzer
+  const [scenarios, setScenarios] = useState('');
 
   // Common state
   const [output, setOutput] = useState('');
@@ -155,6 +171,76 @@ function App() {
       setIsLoading(false);
     }
   };
+  
+  const handleGenerateUsabilityTest = async () => {
+    if (!usabilityScreenshot) {
+        setError("Please upload a screenshot.");
+        return;
+    }
+    setIsLoading(true);
+    setError(null);
+    setOutput('');
+    setAnnotatedImage(null);
+    try {
+      const imagePart = await fileToGenerativePart(usabilityScreenshot);
+      const { textReport, annotatedImagePart } = await generateUsabilityTest(usabilityContext, imagePart);
+      
+      setOutput(textReport);
+
+      if (annotatedImagePart?.inlineData) {
+        const mimeType = annotatedImagePart.inlineData.mimeType;
+        const base64Data = annotatedImagePart.inlineData.data;
+        setAnnotatedImage(`data:${mimeType};base64,${base64Data}`);
+      } else {
+        setError("The AI generated a report but failed to return an annotated image.");
+      }
+
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        setError(e.message);
+      } else {
+        setError('An unknown error occurred.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGeneratePipelineConfig = async () => {
+    setIsLoading(true);
+    setError(null);
+    setOutput('');
+    try {
+      const result = await generatePipelineConfig(pipelineCode, ciTool, runnerImage);
+      setOutput(result);
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        setError(e.message);
+      } else {
+        setError('An unknown error occurred.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGenerateScenarioAnalysis = async () => {
+    setIsLoading(true);
+    setError(null);
+    setOutput('');
+    try {
+      const result = await generateScenarioAnalysis(scenarios);
+      setOutput(result);
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        setError(e.message);
+      } else {
+        setError('An unknown error occurred.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
 
   const handleToolChange = (tool: Tool) => {
@@ -162,6 +248,7 @@ function App() {
     // Reset state when switching tools
     setOutput('');
     setError(null);
+    setAnnotatedImage(null);
     setAcceptanceCriteria('');
     setSelectedPractices([]);
     setTestCase('');
@@ -173,6 +260,10 @@ function App() {
     setTechStack('');
     setAuditUrl('');
     setScreenshots([]);
+    setUsabilityContext('');
+    setUsabilityScreenshot(null);
+    setPipelineCode('');
+    setScenarios('');
   };
 
   const placeholder = useMemo(() => {
@@ -201,6 +292,21 @@ function App() {
             return {
                 title: 'Your accessibility audit report will appear here.',
                 subtitle: 'Provide a URL or screenshots and click "Generate Audit".'
+            };
+      case Tool.UsabilityTester:
+            return {
+                title: 'Your usability test report will appear here.',
+                subtitle: 'Upload a screenshot, provide context, and click "Generate Analysis".'
+            };
+      case Tool.PipelineGenerator:
+            return {
+                title: 'Your CI/CD pipeline file will appear here.',
+                subtitle: 'Paste your test code, select your CI/CD tools, and click "Generate Pipeline".'
+            };
+      case Tool.ScenarioAnalyzer:
+            return {
+                title: 'Your scenario analysis will appear here.',
+                subtitle: 'Paste your new feature scenarios and click "Generate Analysis".'
             };
       default:
         return { title: 'Output will appear here.', subtitle: '' };
@@ -273,7 +379,40 @@ function App() {
                 onGenerate={handleGenerateAccessibilityAudit}
                 isLoading={isLoading}
             />
-        )
+        );
+      case Tool.UsabilityTester:
+        return (
+            <UsabilityTestForm
+                context={usabilityContext}
+                setContext={setUsabilityContext}
+                screenshot={usabilityScreenshot}
+                setScreenshot={setUsabilityScreenshot}
+                onGenerate={handleGenerateUsabilityTest}
+                isLoading={isLoading}
+            />
+        );
+      case Tool.PipelineGenerator:
+        return (
+            <PipelineGeneratorForm
+                code={pipelineCode}
+                setCode={setPipelineCode}
+                ciTool={ciTool}
+                setCiTool={setCiTool}
+                runnerImage={runnerImage}
+                setRunnerImage={setRunnerImage}
+                onGenerate={handleGeneratePipelineConfig}
+                isLoading={isLoading}
+            />
+        );
+      case Tool.ScenarioAnalyzer:
+        return (
+            <ScenarioAnalyzerForm
+                scenarios={scenarios}
+                setScenarios={setScenarios}
+                onGenerate={handleGenerateScenarioAnalysis}
+                isLoading={isLoading}
+            />
+        );
       default:
         return null;
     }
@@ -295,6 +434,7 @@ function App() {
               error={error}
               placeholder={placeholder}
               activeTool={activeTool}
+              annotatedImage={annotatedImage}
             />
           </div>
         </div>

@@ -12,6 +12,9 @@ const toolDisplayNames: Record<Tool, string> = {
     [Tool.AutomationCodeGenerator]: 'Automation Code Gen',
     [Tool.QAEpicDocGenerator]: 'Epic Doc Generator',
     [Tool.AccessibilityAuditor]: 'A11y Auditor',
+    [Tool.UsabilityTester]: 'Usability Test',
+    [Tool.PipelineGenerator]: 'Pipeline Gen',
+    [Tool.ScenarioAnalyzer]: 'Scenario Analyzer',
 };
 
 export const ToolSelector: React.FC<ToolSelectorProps> = ({ activeTool, onToolChange }) => {

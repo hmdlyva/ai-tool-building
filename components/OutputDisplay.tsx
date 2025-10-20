@@ -10,6 +10,7 @@ interface OutputDisplayProps {
     subtitle: string;
   };
   activeTool: Tool;
+  annotatedImage: string | null;
 }
 
 const CopyIcon = () => (
@@ -122,13 +123,13 @@ const parseMarkdown = (text: string) => {
     return html;
 };
 
-export const OutputDisplay: React.FC<OutputDisplayProps> = ({ output, isLoading, error, placeholder, activeTool }) => {
+export const OutputDisplay: React.FC<OutputDisplayProps> = ({ output, isLoading, error, placeholder, activeTool, annotatedImage }) => {
     const [copied, setCopied] = useState(false);
     
     const renderedHtml = useMemo(() => {
         if (!output) return { __html: '' };
         
-        const isCodeOutput = activeTool === Tool.AutomationCodeGenerator;
+        const isCodeOutput = activeTool === Tool.AutomationCodeGenerator || activeTool === Tool.PipelineGenerator;
 
         if (isCodeOutput) {
             return { __html: `<pre class="whitespace-pre-wrap break-words text-gray-200 font-sans">${escapeHtml(output)}</pre>` };
@@ -196,7 +197,16 @@ export const OutputDisplay: React.FC<OutputDisplayProps> = ({ output, isLoading,
             );
         }
         if (output) {
-            return <div id="output-content" className="prose prose-invert max-w-none" dangerouslySetInnerHTML={renderedHtml} />;
+            return (
+                <>
+                    {annotatedImage && (
+                        <div className="mb-6 border border-gray-600 rounded-lg overflow-hidden shadow-lg">
+                            <img src={annotatedImage} alt="Annotated user interface" className="w-full h-auto" />
+                        </div>
+                    )}
+                    <div id="output-content" className="prose prose-invert max-w-none" dangerouslySetInnerHTML={renderedHtml} />
+                </>
+            );
         }
         return (
             <div className="text-center text-gray-500">
