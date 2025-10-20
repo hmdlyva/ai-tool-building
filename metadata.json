@@ -1,0 +1,5 @@
+{
+  "name": "Copy of AI Test Case Generator",
+  "description": "A tool that uses Generative AI to create test cases from acceptance criteria in either procedural or Gherkin format.",
+  "requestFramePermissions": []
+}
